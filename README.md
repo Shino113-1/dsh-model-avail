@@ -89,6 +89,8 @@ cordis.patch.yml bundle 补丁（插入 id: model-avail）
 
 **宿主**：启动 4 秒后自动开跑，之后监听 `llm/adapters-updated`；缓存写在 `$DSH_HOME/dsh-model-avail/state.json`，TTL 6 小时，重启复用。
 
+> 重启后适配器可能比插件晚注册完，第一轮目录会是空的。这时插件会在 25 秒后自己再补一轮，不需要手动刷新。
+
 **浏览器**：先把自己看到的 roster（每个 provider 及其模型 id）POST 给宿主，再拉取 `/dsh-model-avail/state`，给每个 provider 组算「可用数」，重排并把标签写进组名。装饰是幂等的 —— 先剥掉自己的标签再重算，所以多次刷新不会叠成 `· 3/8 · 3/8`。页面启动立即拉一次，之后每 15 秒复查。
 
 > 为什么 roster 由浏览器上报：模型选择器里可能出现宿主 `llm.listModels` 列不出来的路由（例如只写在设置里的自定义 provider，适配器能应答但目录为空）。这类 provider 以前会显示成 `0/0` 或者完全没有标签，现在以选择器实际渲染的内容为准，宿主只负责逐个探测「这条路由到底答不答」。
