@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url'
 const CLIENT = fileURLToPath(new URL('../lib/client.js', import.meta.url))
 
 /**
- * Load the browser bundle the way the Harness loader does, but with a stub
- * `window` so the module body can run under node.
+ * 像 Harness 的 loader 那样加载浏览器 bundle，但换成桩 `window`，
+ * 让模块主体能在 node 下跑起来。
  */
 function loadClient() {
   let definition = null
@@ -31,7 +31,7 @@ function loadClient() {
 
 const client = loadClient()
 
-/** Build the host state body the browser half consumes. */
+/** 构造浏览器半侧消费的宿主 state 响应体。 */
 function hostState(providers) {
   return {
     updatedAt: 1,
@@ -96,7 +96,7 @@ test('an empty or missing snapshot leaves the groups untouched', () => {
 
 test('apply attaches once the catalog store shows up late', async (t) => {
   const groups = [{ id: 'alpha', name: 'Alpha', models: [{ id: 'a1', name: 'A1' }] }]
-  // createSnapshotStore hands out { value, status, error }, exactly like the real one.
+  // createSnapshotStore 交出的正是 { value, status, error }，与真实实现一致。
   const state = { value: { groups } }
   const store = {
     getSnapshot() {
@@ -140,7 +140,7 @@ test('apply attaches once the catalog store shows up late', async (t) => {
   })
 
   client.apply(ctx)
-  // The service exists but its catalog does, as in a cold page, only later.
+  // 服务已在，但目录没有 —— 就像冷启动的页面，它稍后才出现。
   assert.equal(state.value.groups[0].name, 'Alpha')
   await new Promise((resolve) => setTimeout(resolve, 150))
   assert.equal(state.value.groups[0].name, 'Alpha', 'no decoration before the store exists')
@@ -193,9 +193,70 @@ test('the picker roster is reported to the host once per change', async (t) => {
     ],
   })
 
-  // A second bake of the same roster must not post again.
+  // 同一份名单再装饰一次，不能重复上报。
   state.value = { groups: client.decorate(groups, null) }
   store.subscribe = () => () => {}
   await new Promise((resolve) => setTimeout(resolve, 50))
   assert.equal(posted.length, 1, 'unchanged rosters are not re-posted')
+})
+
+test('model names in the picker are painted by availability', (t) => {
+  const providerSelector = '.dsh-reasoning-model__provider'
+  const nameSelector = '.dsh-reasoning-model__provider-name'
+  const optionSelector = '.dsh-reasoning-model__option-name'
+  /** 一个模型名节点，记住被标上的可用性属性。 */
+  const option = (textContent) => {
+    const attributes = {}
+    return {
+      textContent,
+      getAttribute: (key) => attributes[key],
+      setAttribute: (key, value) => {
+        attributes[key] = value
+      },
+      attribute: (key) => attributes[key],
+    }
+  }
+  const provider = (heading, options) => ({
+    querySelector: (selector) => (selector === nameSelector ? { textContent: heading } : null),
+    querySelectorAll: (selector) => (selector === optionSelector ? options : []),
+  })
+  const live = option('A1')
+  const dead = option('A2 (不可用)')
+  const unprobed = option('A3')
+  const stranger = option('Z9')
+  const alpha = provider('Alpha · 1/3', [live, dead, unprobed])
+  const unknown = provider('Not reported', [stranger])
+  const realDocument = globalThis.document
+  globalThis.document = {
+    head: { appendChild: () => {} },
+    getElementById: () => null,
+    createElement: () => ({ id: '', textContent: '' }),
+    querySelectorAll: (selector) => (selector === providerSelector ? [alpha, unknown] : []),
+  }
+  t.after(() => {
+    globalThis.document = realDocument
+  })
+
+  const result = client.paintDocument(
+    hostState([
+      {
+        id: 'alpha',
+        name: 'Alpha',
+        usable: 1,
+        total: 3,
+        models: [
+          { id: 'a1', name: 'A1', state: 'available' },
+          { id: 'a2', name: 'A2', state: 'unavailable' },
+          { id: 'a3', name: 'A3', state: 'unknown' },
+        ],
+      },
+    ]),
+  )
+
+  assert.equal(result.painted, 3)
+  assert.deepEqual(result.byState, { available: 1, unavailable: 1, unknown: 1 })
+  assert.equal(live.attribute('data-model-avail'), 'available')
+  assert.equal(dead.attribute('data-model-avail'), 'unavailable')
+  assert.equal(unprobed.attribute('data-model-avail'), 'unknown')
+  assert.equal(stranger.attribute('data-model-avail'), undefined, 'unknown providers are left alone')
 })

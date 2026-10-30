@@ -1,9 +1,8 @@
 /**
- * Tests for scripts/install.mjs — the offline install route a stranger uses
- * after cloning the repository.
+ * scripts/install.mjs 的测试 —— 陌生人克隆仓库之后走的离线安装路径。
  *
- * Every case builds a throwaway `$DSH_HOME` with one or more fake profiles, so
- * nothing here touches the real DSH installation.
+ * 每个用例都在临时 `$DSH_HOME` 里搭一个或多个假 profile，
+ * 所以这里不会碰到真实的 DSH 安装。
  */
 
 import assert from 'node:assert/strict'
@@ -17,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const INSTALLER = join(ROOT, 'scripts', 'install.mjs')
 
-/** A temporary DSH home holding the named profiles. */
+/** 一个放着所给名字 profile 的临时 DSH home。 */
 function makeHome(profiles) {
   const home = mkdtempSync(join(tmpdir(), 'dsh-model-avail-install-'))
   for (const name of profiles) {
@@ -32,7 +31,7 @@ function makeHome(profiles) {
   return home
 }
 
-/** Run the installer with a clean environment pointing at `home`. */
+/** 用指向 `home` 的干净环境运行安装脚本。 */
 function run(args, home) {
   const env = { ...process.env, DSH_HOME: home }
   delete env.DSH_PROFILE
@@ -40,7 +39,7 @@ function run(args, home) {
   return execFileSync(process.execPath, [INSTALLER, ...args], { env, encoding: 'utf8' })
 }
 
-/** Run the installer expecting a non-zero exit; returns stderr. */
+/** 运行安装脚本并期待非零退出；返回 stderr。 */
 function runFailing(args, home) {
   try {
     run(args, home)
@@ -50,7 +49,7 @@ function runFailing(args, home) {
   throw new Error('installer unexpectedly succeeded')
 }
 
-/** The profile manifest of a fake profile. */
+/** 假 profile 的清单。 */
 function manifestOf(home, name = 'desktop') {
   return JSON.parse(readFileSync(join(home, 'profiles', name, 'package.json'), 'utf8'))
 }
@@ -68,7 +67,7 @@ test('installs the package and registers the bundle, idempotently', (t) => {
   }
   assert.deepEqual(manifestOf(home).dsh.profile.bundles, ['@deepseek-ai/dsh-base', 'dsh-model-avail'])
 
-  // Second run: no duplicate entry, no failure.
+  // 第二遍：不重复登记，也不报错。
   const again = run([], home)
   assert.match(again, /already up to date/)
   assert.deepEqual(manifestOf(home).dsh.profile.bundles, ['@deepseek-ai/dsh-base', 'dsh-model-avail'])

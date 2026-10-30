@@ -10,7 +10,7 @@ after(() => rmSync(home, { recursive: true, force: true }))
 
 const { apply, inject } = await import('../lib/index.js')
 
-/** Build a host context with just the services this plugin touches. */
+/** 构造只带本插件所用服务的宿主上下文。 */
 function fakeContext({ providers, models, stream }) {
   const registered = []
   const disposers = []
@@ -42,7 +42,7 @@ function fakeContext({ providers, models, stream }) {
   return { ctx, registered, disposers }
 }
 
-/** Drive one route request and collect the JSON body. */
+/** 驱动一次路由请求并收集 JSON 响应体。 */
 async function request(spec, method, url, body) {
   const req = {
     method,
@@ -68,7 +68,7 @@ async function request(spec, method, url, body) {
   return { status: res.status, body: res.payload === '' ? null : JSON.parse(res.payload) }
 }
 
-/** Poll the state route until the probe cycle settles. */
+/** 反复轮询 state 路由，直到探测轮次稳定下来。 */
 async function settled(spec) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const { body } = await request(spec, 'GET', '/dsh-model-avail/state')
@@ -152,8 +152,8 @@ test('a malformed probe request is rejected without touching the provider', asyn
 })
 
 test('a roster posted by the picker fills providers the adapter catalog cannot list', async () => {
-  // The adapter answers for p4 but reports no catalog of its own, exactly like
-  // the settings-configured routes that left the picker unannotated.
+  // 适配器能应答 p4，却不上报自己的目录，正像那些在设置里配置、
+  // 让选择器失去标签的路由。
   const { ctx, registered } = fakeContext({
     providers: [{ id: 'p4', name: 'Provider Four' }],
     models: { p4: [] },

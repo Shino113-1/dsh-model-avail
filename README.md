@@ -13,7 +13,7 @@ opencode2dsh · 0/8
 DeepSeek Account · 0/2
 ```
 
-点进去，不可用的模型沉在组尾并标注 `(不可用)`。
+点进去，每个模型名按判定结果上色：**可用=绿色**（`#2ea043`）、**不可用=红色**（`#d1242f`）、**待验证=灰色**；不可用的模型还会沉到组尾并标注 `(不可用)`。
 
 ## 为什么需要它
 
@@ -74,7 +74,7 @@ node scripts/install.mjs --profile "C:\Users\<你>\.dsh\profiles\desktop"
 ## 确认是否生效
 
 - **选择器**：提供商标题带 `· 可用/总数`，并按可用数降序。第一次启动宿主会在几秒后自动开跑探测，探测完成前列表保持原顺序（不会闪来闪去）。
-- **控制台**：每次快照版本变化会打一行 `[model-avail] N providers decorated; top: …`。
+- **控制台**：每次快照版本变化会打一行 `[model-avail] N providers decorated; top: …`；展开某个提供商、模型名真的上了色之后，还会打一行 `[model-avail] painted N model names by availability (可用 …、不可用 …、待验证 …); 可用色 rgb(46, 160, 67)、不可用色 rgb(209, 36, 47)` —— 连浏览器算出来的颜色一起报，样式没生效一眼可见。
 - **接口**：`curl http://127.0.0.1:<端口>/dsh-model-avail/state` 返回快照，含 `probing`、`progress`、每个模型的 verdict。端口就是 Web UI 的端口（默认按 DSH 启动参数）。
 
 如果只看到统计、却没按可用数排序，通常是探测还没跑完（`probing: true`）。
@@ -94,6 +94,8 @@ cordis.patch.yml bundle 补丁（插入 id: model-avail）
 **浏览器**：先把自己看到的 roster（每个 provider 及其模型 id）POST 给宿主，再拉取 `/dsh-model-avail/state`，给每个 provider 组算「可用数」，重排并把标签写进组名。装饰是幂等的 —— 先剥掉自己的标签再重算，所以多次刷新不会叠成 `· 3/8 · 3/8`。页面启动立即拉一次，之后每 15 秒复查。
 
 > 为什么 roster 由浏览器上报：模型选择器里可能出现宿主 `llm.listModels` 列不出来的路由（例如只写在设置里的自定义 provider，适配器能应答但目录为空）。这类 provider 以前会显示成 `0/0` 或者完全没有标签，现在以选择器实际渲染的内容为准，宿主只负责逐个探测「这条路由到底答不答」。
+
+**上色**：选择器是第三方插件 `dsh-reasoning-effort` 渲染的，模型名节点没有暴露可用性字段，所以颜色只能在 DOM 上做 —— 给每个 `.dsh-reasoning-model__option-name` 打一个 `data-model-avail="available|unavailable|unknown"`，再往 `document.head` 注入一条按属性选择器上色的样式表。弹层每次打开都是新节点，因此用 `MutationObserver`（120ms 防抖）盯住 `document.body` 重画。只在选择器用这套类名时生效，换别的选择器实现就不上色（但排序与统计照旧）。
 
 ### 路由
 
@@ -118,6 +120,7 @@ cordis.patch.yml bundle 补丁（插入 id: model-avail）
 - `deepseek-account` / `deepseek-official` 由 DSH 核心固定置顶，本插件不抢这两个位置 —— 所以「可用数最多」的那个不一定排在最上面。
 - 浏览器半侧只对 Web UI 生效；TUI 的选择器不受影响。
 - 提供商统计包含 DSH 里按视觉能力拆分出来的变体组（如 `X + 自动识图`），它们各自有独立统计。
+- 颜色只给「当前选择器」上：它由 `dsh-reasoning-effort` 插件渲染，类名变了本插件就安静地不上色（排序与标签不受影响）。
 
 ## 卸载
 

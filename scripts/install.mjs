@@ -1,22 +1,21 @@
 /**
- * Install this plugin into a DSH profile the way a bundle is normally wired:
- * copy the package into the profile's `node_modules` and register it in
- * `dsh.profile.bundles`, so its bundle patch is applied on the next boot.
+ * 按 bundle 常见的接法把本插件装进 DSH profile：把包复制到 profile 的
+ * `node_modules`，并登记进 `dsh.profile.bundles`，这样下次启动时它的
+ * bundle 补丁就会被应用。
  *
- * Only the `bundles` array is touched in the profile manifest — no dependency
- * entry is added, so pnpm's lockfile stays valid and the profile is never
- * re-resolved against a registry. That makes this script the offline route;
- * the DSH plugin panel (npm / git / local directory) is the online one.
+ * profile 清单里只动 `bundles` 数组 —— 不添加依赖条目，pnpm 的 lockfile
+ * 因此保持有效，profile 也不会被重新向 registry 解析。这让本脚本成为离线
+ * 路径；DSH 插件面板（npm / git / 本地目录）则是在线路径。
  *
- * Usage:
- *   node scripts/install.mjs                 # detect the only profile
- *   node scripts/install.mjs --list          # show the profiles found
- *   node scripts/install.mjs --profile <dir> # explicit profile directory
- *   node scripts/install.mjs --dry-run       # report, change nothing
- *   node scripts/install.mjs --uninstall     # remove it again
+ * 用法：
+ *   node scripts/install.mjs                 # 自动识别唯一的 profile
+ *   node scripts/install.mjs --list          # 列出找到的 profile
+ *   node scripts/install.mjs --profile <dir> # 指定 profile 目录
+ *   node scripts/install.mjs --dry-run       # 只报告，不改动
+ *   node scripts/install.mjs --uninstall     # 再卸载掉
  *
- * The profile is also taken from `DSH_PROFILE_DIR`, or from `DSH_PROFILE`
- * (a profile name under `$DSH_HOME/profiles`).
+ * 也可以从 `DSH_PROFILE_DIR` 取 profile，或从 `DSH_PROFILE`
+ * （`$DSH_HOME/profiles` 下的 profile 名）取。
  *
  * @module dsh-model-avail/scripts/install
  */
@@ -30,19 +29,19 @@ const PACKAGE = 'dsh-model-avail'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FILES = ['lib', 'package.json', 'cordis.patch.yml', 'README.md', 'LICENSE']
 
-/** Fail with a one-line, actionable message. */
+/** 用一行可操作的提示终止。 */
 function die(message) {
   console.error(`install: ${message}`)
   process.exit(1)
 }
 
-/** `$DSH_HOME`, defaulting to `~/.dsh`. */
+/** `$DSH_HOME`，默认 `~/.dsh`。 */
 function dshHome() {
   const fromEnv = process.env.DSH_HOME
   return fromEnv !== undefined && fromEnv !== '' ? resolve(fromEnv) : join(homedir(), '.dsh')
 }
 
-/** A profile directory is one holding a `package.json` with a `dsh.profile` block. */
+/** profile 目录就是那个带有 `dsh.profile` 段落的 `package.json` 的目录。 */
 function isProfile(dir) {
   try {
     const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
@@ -52,7 +51,7 @@ function isProfile(dir) {
   }
 }
 
-/** Every profile directory under `$DSH_HOME/profiles`, in name order. */
+/** `$DSH_HOME/profiles` 下的所有 profile 目录，按名字排序。 */
 function discoverProfiles() {
   const root = join(dshHome(), 'profiles')
   if (!existsSync(root)) return []
@@ -68,7 +67,7 @@ function discoverProfiles() {
     .sort()
 }
 
-/** Read the profile directory from the CLI or the environment. */
+/** 从命令行或环境变量读出 profile 目录。 */
 function resolveProfile(argv) {
   const index = argv.indexOf('--profile')
   if (index >= 0) {
@@ -95,7 +94,7 @@ function resolveProfile(argv) {
   die(`several DSH profiles found — pass --profile <dir>:\n  ${found.map((dir) => `${join(dir, 'package.json')}`).join('\n  ')}`)
 }
 
-/** Read the profile manifest. */
+/** 读取 profile 清单。 */
 function readManifest(file) {
   try {
     return JSON.parse(readFileSync(file, 'utf8'))
@@ -104,12 +103,12 @@ function readManifest(file) {
   }
 }
 
-/** Write the profile manifest with two-space indentation, like the original. */
+/** 以两空格缩进写回 profile 清单，和原始格式保持一致。 */
 function writeManifest(file, manifest) {
   writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 }
 
-/** Ensure `name` is listed in `dsh.profile.bundles`, keeping existing order. */
+/** 确保 `name` 列在 `dsh.profile.bundles` 里，并保留既有顺序。 */
 function registerBundle(manifest, name) {
   manifest.dsh ??= {}
   manifest.dsh.profile ??= {}
@@ -119,7 +118,7 @@ function registerBundle(manifest, name) {
   return { manifest, changed: true }
 }
 
-/** Drop `name` from `dsh.profile.bundles`. */
+/** 从 `dsh.profile.bundles` 里去掉 `name`。 */
 function unregisterBundle(manifest, name) {
   const bundles = manifest.dsh?.profile?.bundles
   if (!Array.isArray(bundles) || !bundles.includes(name)) return { manifest, changed: false }
@@ -127,7 +126,7 @@ function unregisterBundle(manifest, name) {
   return { manifest, changed: true }
 }
 
-/** Copy the package files into `<profile>/node_modules/<name>`. */
+/** 把包文件复制到 `<profile>/node_modules/<name>`。 */
 function installFiles(profile) {
   const target = join(profile, 'node_modules', PACKAGE)
   rmSync(target, { recursive: true, force: true })

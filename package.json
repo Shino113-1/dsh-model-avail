@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-avail",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Probe which models actually answer, then order the model picker by how many models each provider really serves.",
   "type": "module",
   "main": "lib/index.js",
