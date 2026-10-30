@@ -150,3 +150,36 @@ test('a malformed probe request is rejected without touching the provider', asyn
   const { status } = await request(registered[0], 'POST', '/dsh-model-avail/probe', { provider: 'p3' })
   assert.equal(status, 400)
 })
+
+test('a roster posted by the picker fills providers the adapter catalog cannot list', async () => {
+  // The adapter answers for p4 but reports no catalog of its own, exactly like
+  // the settings-configured routes that left the picker unannotated.
+  const { ctx, registered } = fakeContext({
+    providers: [{ id: 'p4', name: 'Provider Four' }],
+    models: { p4: [] },
+    stream: async function* () {
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  })
+  apply(ctx)
+  const spec = registered[0]
+  const posted = await request(spec, 'POST', '/dsh-model-avail/roster', {
+    providers: [{ id: 'p4', name: 'Provider Four', models: [{ id: 'x', name: 'X' }, { id: 'y', name: 'Y' }] }],
+  })
+  assert.equal(posted.status, 200)
+  assert.equal(posted.body.reported, 1)
+  const state = await settled(spec)
+  const provider = state.providers.find((entry) => entry.id === 'p4')
+  assert.equal(provider.total, 2)
+  assert.equal(provider.usable, 2)
+})
+
+test('a roster post ignores malformed entries instead of failing the route', async () => {
+  const { ctx, registered } = fakeContext({ providers: [], models: {}, stream: async function* () {} })
+  apply(ctx)
+  const { status, body } = await request(registered[0], 'POST', '/dsh-model-avail/roster', {
+    providers: [{ id: '' }, { id: 'p5', models: [{ name: 'no id' }] }, null],
+  })
+  assert.equal(status, 200)
+  assert.equal(body.reported, 1)
+})

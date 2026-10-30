@@ -148,3 +148,54 @@ test('apply attaches once the catalog store shows up late', async (t) => {
   await new Promise((resolve) => setTimeout(resolve, 900))
   assert.equal(state.value.groups[0].name, 'Alpha · 1/1')
 })
+
+test('the picker roster is reported to the host once per change', async (t) => {
+  const groups = [
+    { id: 'alpha', name: 'Alpha', models: [{ id: 'a1', name: 'A1' }, { id: 'a2', name: 'A2' }] },
+    { id: 'beta', name: 'Beta', models: [{ id: 'b1', name: 'B1' }] },
+  ]
+  const state = { value: { groups } }
+  const store = {
+    getSnapshot: () => state,
+    subscribe: () => () => {},
+    update: (mutator) => mutator(state),
+  }
+  const posted = []
+  const realFetch = globalThis.fetch
+  const realInfo = console.info
+  globalThis.fetch = async (url, init) => {
+    if (init?.method === 'POST') posted.push({ url, body: JSON.parse(init.body) })
+    return { ok: true, json: async () => hostState([]) }
+  }
+  console.info = () => {}
+  let teardown = null
+  t.after(() => {
+    globalThis.fetch = realFetch
+    console.info = realInfo
+    teardown?.()
+  })
+
+  client.apply({
+    effect(run) {
+      teardown = run()
+      return teardown
+    },
+    inject: (_deps, callback) => callback({ modelDirectories: { catalog: { store } } }),
+  })
+  await new Promise((resolve) => setTimeout(resolve, 150))
+
+  assert.equal(posted.length, 1, 'one roster post after the store is attached')
+  assert.equal(posted[0].url, '/dsh-model-avail/roster')
+  assert.deepEqual(posted[0].body, {
+    providers: [
+      { id: 'alpha', name: 'Alpha', models: [{ id: 'a1', name: 'A1' }, { id: 'a2', name: 'A2' }] },
+      { id: 'beta', name: 'Beta', models: [{ id: 'b1', name: 'B1' }] },
+    ],
+  })
+
+  // A second bake of the same roster must not post again.
+  state.value = { groups: client.decorate(groups, null) }
+  store.subscribe = () => () => {}
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  assert.equal(posted.length, 1, 'unchanged rosters are not re-posted')
+})
