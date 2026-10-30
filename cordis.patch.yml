@@ -1,0 +1,6 @@
+# Bundle patch for dsh-model-avail.
+
+- insert:
+    - id: model-avail
+      name: dsh-model-avail
+      config: {}
