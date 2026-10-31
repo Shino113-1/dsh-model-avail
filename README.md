@@ -55,7 +55,9 @@ node scripts/install.mjs --dry-run   # 预览要改什么
 node scripts/install.mjs             # 自动检测唯一的 profile 并安装
 ```
 
-脚本只做两件事：把包复制进 `<profile>/node_modules/dsh-model-avail`，把包名追加进 profile `package.json` 的 `dsh.profile.bundles`。它**不动依赖条目**，所以不会让 pnpm 锁文件失配、也不会触发联网重装。
+脚本做三件事：把包复制进 `<profile>/node_modules/dsh-model-avail`，把包名追加进 profile `package.json` 的 `dsh.profile.bundles`，**当 profile 由 pnpm 管理时**再补一条 `dependencies["dsh-model-avail"] = "file:./vendor/dsh-model-avail"` 并把副本放进 `<profile>/vendor/`。
+
+> 为什么需要那条 `file:` 依赖：插件面板每次装/升级别的插件都会在 profile 里跑 pnpm，而 pnpm 只保留依赖表里有的包 —— 手工复制进 `node_modules` 的目录会被当成垃圾清掉，插件随即「没反应」（接口 404、选择器不再有标签）。声明成 `file:` 依赖后 pnpm 会保留它；副本就在 profile 内，离线也能装回。已经踩过这个坑的人，重跑一次本脚本即可修复。
 
 指定 profile：
 
@@ -69,7 +71,8 @@ node scripts/install.mjs --profile "C:\Users\<你>\.dsh\profiles\desktop"
 
 1. 把整个目录复制到 `<profile>/node_modules/dsh-model-avail`；
 2. 在 `<profile>/package.json` 的 `dsh.profile.bundles` 数组末尾加上 `"dsh-model-avail"`；
-3. 重启 DSH。
+3. 若该 profile 里有 `pnpm-lock.yaml`（说明由 pnpm 管理），再把目录复制一份到 `<profile>/vendor/dsh-model-avail`，并在 `dependencies` 里加 `"dsh-model-avail": "file:./vendor/dsh-model-avail"`；
+4. 重启 DSH。
 
 ## 确认是否生效
 
@@ -121,6 +124,8 @@ cordis.patch.yml bundle 补丁（插入 id: model-avail）
 - 浏览器半侧只对 Web UI 生效；TUI 的选择器不受影响。
 - 提供商统计包含 DSH 里按视觉能力拆分出来的变体组（如 `X + 自动识图`），它们各自有独立统计。
 - 颜色只给「当前选择器」上：它由 `dsh-reasoning-effort` 插件渲染，类名变了本插件就安静地不上色（排序与标签不受影响）。
+- 装完之后**必须重启一次 DSH**：宿主半侧的路由与客户端 bundle 都在启动时注册；在那之前接口是 404、选择器也不会有标签。
+- profile 若由 pnpm 管理（有 `pnpm-lock.yaml`），别只手工复制 `node_modules`：pnpm 下一次装/升级别的插件时会把它清掉（见「方式二」的说明）。
 
 ## 卸载
 

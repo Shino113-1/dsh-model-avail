@@ -126,3 +126,39 @@ test('--list prints every profile under the DSH home', (t) => {
   assert.match(out, /profiles[/\\]desktop/)
   assert.match(out, /profiles[/\\]work/)
 })
+
+test('a pnpm-managed profile also gets a file: dependency and a vendor copy', (t) => {
+  const home = makeHome(['desktop'])
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const profile = join(home, 'profiles', 'desktop')
+  // pnpm 留下的痕迹：只要有 lockfile，就说明下一次 pnpm install 会清掉无名包。
+  writeFileSync(join(profile, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n', 'utf8')
+
+  const out = run([], home)
+  assert.match(out, /file: dependency/)
+  // 声明过依赖才会被 pnpm 保留，而且指向 profile 内的副本。
+  assert.equal(manifestOf(home).dependencies['dsh-model-avail'], 'file:./vendor/dsh-model-avail')
+  const vendor = join(profile, 'vendor', 'dsh-model-avail')
+  assert.ok(existsSync(join(vendor, 'package.json')), 'vendor copy keeps a manifest')
+  assert.ok(existsSync(join(vendor, 'lib', 'client.js')), 'vendor copy keeps the client bundle')
+  assert.deepEqual(manifestOf(home).dsh.profile.bundles, ['@deepseek-ai/dsh-base', 'dsh-model-avail'])
+
+  const again = run([], home)
+  assert.match(again, /already up to date/)
+  assert.match(again, /registered in|already up to date/)
+
+  const removed = run(['--uninstall'], home)
+  assert.match(removed, /removed/)
+  assert.equal(manifestOf(home).dependencies, undefined, 'uninstall drops the dependency again')
+  assert.ok(!existsSync(vendor), 'uninstall drops the vendor copy')
+})
+
+test('a plain profile keeps its manifest free of the file: dependency', (t) => {
+  const home = makeHome(['desktop'])
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+
+  const out = run([], home)
+  assert.doesNotMatch(out, /file: dependency/)
+  assert.equal(manifestOf(home).dependencies, undefined)
+  assert.ok(!existsSync(join(home, 'profiles', 'desktop', 'vendor', 'dsh-model-avail')))
+})
